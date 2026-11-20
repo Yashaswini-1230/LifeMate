@@ -1,56 +1,96 @@
-# Welcome to your Expo app 👋
+# LifeMate AI --- Mobile App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+This folder contains the LifeMate AI mobile application, built with
+Expo, React Native, and TypeScript.
 
-## Get started
+## Requirements
 
-1. Install dependencies
+-   Node.js (LTS recommended)
+-   npm
+-   Expo Go on an Android or iOS device, or an emulator
+-   Firebase project configuration
+-   A Groq API key if using AI-powered features
 
-   ```bash
-   npm install
-   ```
+## Installation
 
-2. Start the app
+From this `mobile-app` directory, install dependencies:
 
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+``` bash
+npm install
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+## Environment Configuration
 
-### Other setup steps
+Create a `.env` file in this directory and add the Firebase
+configuration values used by the app:
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+``` env
+EXPO_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
+EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=your_firebase_project_id
+EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=your_firebase_storage_bucket
+EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_firebase_messaging_sender_id
+EXPO_PUBLIC_FIREBASE_APP_ID=your_firebase_app_id
+```
 
-## Learn more
+Add any other environment variables required by your local AI or backend
+configuration. Use real values only in your local `.env` file.
 
-To learn more about developing your project with Expo, look at the following resources:
+**Never commit `.env` files, API keys, or other secrets to GitHub.**
+Share required variable names with collaborators securely; do not share
+secret values in source control.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Run the App
 
-## Join the community
+Start the Expo development server:
 
-Join our community of developers creating universal apps.
+``` bash
+npx expo start
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Then scan the QR code with Expo Go, or launch an available emulator from
+the Expo CLI.
+
+## Useful Commands
+
+``` bash
+# Install dependencies
+npm install
+
+# Start Expo
+npx expo start
+
+# Start with a cleared Metro cache
+npx expo start -c
+
+# Check project health
+npx expo-doctor
+```
+
+## App Structure
+
+``` text
+mobile-app/
+├── assets/             # Images, icons, and other static assets
+├── scripts/            # Project scripts
+├── src/
+│   ├── app/            # Expo Router screens and routes
+│   ├── lib/            # Firebase and shared service modules
+│   └── theme/          # App theme and colors
+├── app.json            # Expo app configuration
+├── package.json        # Dependencies and scripts
+└── tsconfig.json       # TypeScript configuration
+```
+
+The exact files and folders may change as the application develops.
+
+## Development Notes
+
+-   Use TypeScript for application code.
+-   Keep screens and shared services organized under `src/`.
+-   Test changes on a device or emulator.
+-   Keep credentials in local environment files.
+-   Use feature branches and pull requests when collaborating.
+
+For the overall project description and collaboration guidelines, see
+the repository's root [`README.md`](../README.md).

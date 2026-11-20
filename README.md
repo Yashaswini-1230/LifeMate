@@ -1,45 +1,67 @@
-# LifeMate AI — starter screens
+# LifeMate AI
 
-This starter contains the first milestone: a lavender-themed Expo Router welcome screen plus temporary sign-up and login destinations so the two buttons work.
+**Your personal AI-powered life management companion.**
 
-## 1. Create the Expo app
+LifeMate AI is a mobile application designed to help users organize
+everyday activities, build consistent habits, and manage their schedules
+from one place.
 
-From the folder where you want the project:
+## Features
 
-```bash
-npx create-expo-app@latest mobile
-cd mobile
+-   **Authentication:** Sign up and log in using Firebase
+    Authentication.
+-   **Personalized onboarding:** Configure language, wake-up and sleep
+    times, activities, and notification preferences.
+-   **Daily tasks:** View and manage daily activities.
+-   **Habit tracking:** Track habits and maintain streaks.
+-   **Schedule management:** Organize activities and review upcoming and
+    completed items.
+-   **Reminders:** Support for notifications and reminders.
+-   **AI integration:** AI-powered assistance using the Groq API.
+
+Features and integrations may evolve during development.
+
+## Tech Stack
+
+  Area                 Technologies
+  -------------------- --------------------------
+  Mobile application   React Native, Expo
+  Language             TypeScript
+  Navigation           Expo Router
+  Authentication       Firebase Authentication
+  Cloud database       Cloud Firestore
+  Local persistence    AsyncStorage
+  AI                   Groq API
+  Backend services     Cloudflare Workers, Hono
+  Notifications        Expo Notifications
+
+## Repository Structure
+
+``` text
+LifeMate/
+├── mobile-app/       # Expo React Native application
+├── README.md         # Main project documentation
+└── LICENSE
 ```
 
-Choose the default template (it includes Expo Router and TypeScript). If you already created `mobile`, do not create it again.
+## Getting Started
 
-## 2. Install the screen dependencies
+See [`mobile-app/README.md`](mobile-app/README.md) for installation,
+environment configuration, and instructions to run the mobile
+application.
 
-```bash
-npx expo install expo-linear-gradient react-native-safe-area-context
-npm install lucide-react-native
-```
+## Security
 
-## 3. Copy the starter files
+-   Do not commit `.env` files or real API keys.
+-   Keep local credentials private.
+-   Use placeholder values in example configuration files.
 
-Copy the contents of this bundle's `mobile/app` and `mobile/src` folders into the matching folders in your generated Expo project. If the template already has `app/index.tsx` and `app/_layout.tsx`, replace them with these versions.
+## Collaboration
 
-## 4. Run the app
+-   Create a separate branch for each feature or fix.
+-   Make focused commits with clear messages.
+-   Open a pull request to `main` for review before merging.
 
-```bash
-npx expo start
-```
+## License
 
-Scan the QR code with Expo Go if your selected SDK is supported by the installed Expo Go version, or press `a` to open an Android emulator. For native alarm features later, we will move to an Expo development build and test on a physical Android phone.
-
-## What's included
-
-- `app/index.tsx`: responsive welcome screen
-- `app/_layout.tsx`: root navigation stack and status bar
-- `app/(auth)/login.tsx`: temporary login destination
-- `app/(auth)/signup.tsx`: temporary signup destination
-- `src/theme/colors.ts`: shared lavender color tokens
-
-## Not included yet
-
-Firebase, AI calls, local database, alarms, voice recognition, and authentication are intentionally not wired in this first UI milestone.
+See the [LICENSE](LICENSE) file for license information.
