@@ -1,9 +1,14 @@
 import { initializeApp, getApp, getApps } from "firebase/app";
+
 import {
   initializeAuth,
   getAuth,
-  getReactNativePersistence,
+  type Auth,
+  type Persistence,
 } from "firebase/auth";
+
+import * as FirebaseAuth from "firebase/auth";
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const firebaseConfig = {
@@ -11,20 +16,37 @@ const firebaseConfig = {
   authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
   storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  messagingSenderId:
+    process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const app = getApps().length
+  ? getApp()
+  : initializeApp(firebaseConfig);
 
-let auth;
+const { getReactNativePersistence } =
+  FirebaseAuth as typeof FirebaseAuth & {
+    getReactNativePersistence: (
+      storage: typeof AsyncStorage
+    ) => Persistence;
+  };
+
+let auth: Auth;
 
 try {
   auth = initializeAuth(app, {
     persistence: getReactNativePersistence(AsyncStorage),
   });
-} catch {
-  auth = getAuth(app);
+} catch (error) {
+  if (
+    (error as { code?: string }).code ===
+    "auth/already-initialized"
+  ) {
+    auth = getAuth(app);
+  } else {
+    throw error;
+  }
 }
 
 export { app, auth };

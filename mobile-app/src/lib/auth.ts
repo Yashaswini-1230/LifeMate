@@ -1,6 +1,7 @@
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  sendPasswordResetEmail,
   signOut,
   updateProfile,
   User,
@@ -39,6 +40,16 @@ export async function loginUser(
   );
 
   return credential.user;
+}
+
+// Reset password
+export async function resetPassword(
+  email: string,
+): Promise<void> {
+  await sendPasswordResetEmail(
+    auth,
+    email.trim().toLowerCase(),
+  );
 }
 
 // Logout
