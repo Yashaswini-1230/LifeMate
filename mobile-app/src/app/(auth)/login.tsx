@@ -92,8 +92,16 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Pressable onPress={() => router.back()}>
-            <Text style={styles.back}>← Back</Text>
+          <Pressable
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace("/");
+              }
+            }}
+        >
+              <Text style={styles.back}>← Back</Text>
           </Pressable>
 
           <View style={styles.logo}>
@@ -129,23 +137,25 @@ export default function LoginScreen() {
           <Text style={styles.label}>Password</Text>
 
           <View style={[styles.passwordBox, errorMessage && styles.inputError]}>
-            <TextInput
-              style={styles.passwordInput}
-              placeholder="Enter your password"
-              placeholderTextColor="#AAA4B8"
-              secureTextEntry={!showPassword}
-              value={password}
-              onChangeText={(value) => {
-                setPassword(value);
-                setErrorMessage("");
-              }}
-              autoCapitalize="none"
-            />
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Enter your password"
+                placeholderTextColor="#AAA4B8"
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={(value) => {
+                  setPassword(value);
+                  setErrorMessage("");
+                }}
+                autoCapitalize="none"
+              />
 
-            <Pressable onPress={() => setShowPassword(!showPassword)}>
-              <Text style={styles.show}>{showPassword ? "Hide" : "Show"}</Text>
-            </Pressable>
-          </View>
+              <Pressable onPress={() => setShowPassword(!showPassword)}>
+                <Text style={styles.show}>
+                  {showPassword ? "Hide" : "Show"}
+                </Text>
+              </Pressable>
+            </View>
 
           {errorMessage !== "" && (
             <View style={styles.errorContainer}>
@@ -162,12 +172,11 @@ export default function LoginScreen() {
             </Pressable>
 
             <Pressable
-              onPress={() =>
-                setErrorMessage("Password reset will be available soon.")
-              }
-            >
-              <Text style={styles.forgot}>Forgot password?</Text>
-            </Pressable>
+                disabled={loading}
+                onPress={() => router.push("/(auth)/forgot-password")}
+              >
+                <Text style={styles.forgot}>Forgot password?</Text>
+              </Pressable>
           </View>
 
           <Pressable

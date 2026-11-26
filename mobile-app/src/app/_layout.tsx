@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Stack, useRouter, useSegments, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from "../lib/firebase";
@@ -8,7 +8,7 @@ import { colors } from "../theme/colors";
 export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
-
+  const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
 
@@ -30,22 +30,29 @@ export default function RootLayout() {
     const secondSegment = segments[1];
 
     const isAuthScreen = firstSegment === "(auth)";
-    const isProtectedScreen =
-      firstSegment === "home" || firstSegment === "(onboarding)";
+
+    const isWelcomeScreen =
+      pathname === "/" && firstSegment !== "(onboarding)";
+
+const isProtectedScreen =
+  firstSegment === "home" ||
+  firstSegment === "schedule" ||
+  firstSegment === "explore" ||
+  firstSegment === "(onboarding)";
 
     if (!user && isProtectedScreen) {
       router.replace("/(auth)/login");
       return;
     }
 
-    if (user && isAuthScreen) {
+    if (user && isWelcomeScreen)  {
       router.replace("/home");
       return;
     }
 
     // A logged-in user who opens onboarding can continue setup.
     // A logged-out user cannot access onboarding.
-  }, [user, authReady, segments]);
+  }, [user, authReady, segments, pathname]);
 
   // Wait until Firebase restores the authentication session
   if (!authReady) {
@@ -54,7 +61,7 @@ export default function RootLayout() {
 
   return (
     <>
-      <StatusBar style="dark" backgroundColor={colors.background} />
+      <StatusBar style="dark"/>
 
       <Stack
         screenOptions={{

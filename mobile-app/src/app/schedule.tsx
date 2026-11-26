@@ -2,28 +2,25 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
-  SafeAreaView,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { auth } from "../lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 import { useRouter } from "expo-router";
 import { ArrowLeft, CalendarDays, Check, Trash2 } from "lucide-react-native";
 
-type Task = {
-  id: string;
-  title: string;
-  category: string;
-  completed: boolean;
-  createdAt: string;
-  scheduledTime: string | null;
-  dueDate?: string;
-};
+import { getTasks, toggleStoredTask, deleteStoredTask, updateTasks, isDuplicateTask, type Task } from "../lib/taskStorage";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useRef } from "react";
 
-const TASKS_KEY = "lifemate_tasks";
+
+
 type FilterKey =
   | "All"
   | "Today"
@@ -71,6 +68,12 @@ const filters: FilterKey[] = [
 ];
 
 export default function ScheduleScreen() {
+  const [user, setUser] = useState(auth.currentUser);
+  useEffect(() => onAuthStateChanged(auth, setUser), []);
+  if (!user) return null;
+  return <AccountSchedule key={user.uid} uid={user.uid} />;
+}
+function AccountSchedule({uid}: {uid: string}) {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -78,33 +81,22 @@ export default function ScheduleScreen() {
   const [selectedDate, setSelectedDate] = useState(dateKey(new Date()));
   const [dateError, setDateError] = useState("");
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const raw = await AsyncStorage.getItem(TASKS_KEY);
-        const parsed: Task[] = raw ? JSON.parse(raw) : [];
-        setTasks(
-          parsed.map((task) => ({
-            ...task,
-            scheduledTime: task.scheduledTime ?? null,
-            dueDate: task.dueDate ?? dateKey(new Date(task.createdAt)),
-          })),
-        );
-      } catch (error) {
-        console.log("SCHEDULE LOAD FAILED:", error);
-      } finally {
-        setLoaded(true);
-      }
-    };
-    load();
-  }, []);
-
-  useEffect(() => {
-    if (!loaded) return;
-    AsyncStorage.setItem(TASKS_KEY, JSON.stringify(tasks)).catch((error) =>
-      console.log("SCHEDULE SAVE FAILED:", error),
-    );
-  }, [tasks, loaded]);
+  const busy = useRef(false);
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    setLoaded(false); setLoadError("");
+    getTasks(uid).then(data => { if (active && auth.currentUser?.uid === uid) { setTasks(data); setLoaded(true); } }).catch(() => { if (active) setLoadError("Unable to load tasks. Reopen this screen to retry."); });
+    return () => { active = false; };
+  }, [uid]));
+  async function mutate(action: () => Promise<Task[]>) {
+    if (!loaded || busy.current) return;
+    busy.current = true; setSaving(true);
+    try { const data = await action(); if (auth.currentUser?.uid === uid) setTasks(data); }
+    catch { Alert.alert("Unable to save changes", "Please try again."); }
+    finally { busy.current = false; setSaving(false); }
+  }
 
   const today = dateKey(new Date());
   const tomorrowDate = new Date();
@@ -138,17 +130,18 @@ export default function ScheduleScreen() {
       });
   }, [tasks, filter, today, tomorrow, weekEnd]);
 
-  const toggleTask = (id: string) => {
-    setTasks((current) =>
-      current.map((task) =>
-        task.id === id ? { ...task, completed: !task.completed } : task,
-      ),
-    );
-  };
-
-  const deleteTask = (id: string) => {
-    setTasks((current) => current.filter((task) => task.id !== id));
-  };
+  const toggleTask = (id: string) => { void mutate(() => toggleStoredTask(uid, id)); };
+  const deleteTask = (id: string) => Alert.alert("Delete task?", "Remove this task?", [{text:"Cancel",style:"cancel"},{text:"Delete",style:"destructive",onPress:()=>{void mutate(()=>deleteStoredTask(uid,id));}}]);
+  const duplicateCount = tasks.filter((t,i) => tasks.slice(0,i).some(other => isDuplicateTask(t,other))).length;
+  const cleanDuplicates = () => Alert.alert("Remove duplicates?", "Keep one copy of each identical task, preferring a completed copy.", [{text:"Cancel",style:"cancel"},{text:"Remove",style:"destructive",onPress:()=>{void mutate(()=>updateTasks(uid, current => {
+    const unique: Task[] = [];
+    for (const task of current) {
+      const index = unique.findIndex(other => isDuplicateTask(task,other));
+      if (index === -1) unique.push(task);
+      else if (task.completed && !unique[index].completed) unique[index] = task;
+    }
+    return unique;
+  }));}}]);
 
   const selectDate = () => {
     if (!isValidDateKey(selectedDate)) {
@@ -215,6 +208,8 @@ export default function ScheduleScreen() {
           )}
         </View>
 
+        {loadError !== "" && <Text style={styles.error}>{loadError}</Text>}
+        {duplicateCount > 0 && <Pressable disabled={saving || !loaded} style={styles.primaryButton} onPress={cleanDuplicates}><Text style={styles.primaryButtonText}>Remove duplicate tasks ({duplicateCount})</Text></Pressable>}
         <Text style={styles.sectionTitle}>Browse tasks</Text>
         <ScrollView
           horizontal
@@ -243,7 +238,7 @@ export default function ScheduleScreen() {
         </ScrollView>
 
         <View style={styles.taskList}>
-          {!loaded ? (
+          {loadError ? <Text style={styles.error}>{loadError}</Text> : !loaded ? (
             <ActivityIndicator color="#8B70D9" style={{ padding: 28 }} />
           ) : filteredTasks.length === 0 ? (
             <View style={styles.empty}>
@@ -262,6 +257,7 @@ export default function ScheduleScreen() {
                       styles.checkButton,
                       task.completed && styles.checkButtonCompleted,
                     ]}
+                    disabled={saving || !loaded}
                     onPress={() => toggleTask(task.id)}
                   >
                     {task.completed ? (
@@ -287,6 +283,7 @@ export default function ScheduleScreen() {
                   </View>
                   <Pressable
                     style={styles.deleteButton}
+                    disabled={saving || !loaded}
                     onPress={() => deleteTask(task.id)}
                   >
                     <Trash2 size={16} color="#B5A9C9" />

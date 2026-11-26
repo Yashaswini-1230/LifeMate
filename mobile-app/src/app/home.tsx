@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Keyboard,
   Platform,
+  Alert,
 } from "react-native";
 import DateTimePicker, {
   DateTimePickerEvent,
@@ -29,18 +30,13 @@ import {
   X,
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
-import { signOut } from "firebase/auth";
+import { signOut, onAuthStateChanged } from "firebase/auth";
 import { auth } from "../lib/firebase";
 
-type Task = {
-  id: string;
-  title: string;
-  category: string;
-  completed: boolean;
-  createdAt: string;
-  scheduledTime: string | null;
-  dueDate: string;
-};
+import { getTasks, createTask, toggleStoredTask, deleteStoredTask, type Task } from "../lib/taskStorage";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useRef } from "react";
+
 
 type Habit = {
   id: string;
@@ -50,8 +46,7 @@ type Habit = {
   completedDates: string[];
 };
 
-const TASKS_KEY = "lifemate_tasks";
-const HABITS_KEY = "lifemate_habits";
+
 const categories = ["Personal", "Study", "Work", "Health"];
 
 function getDateKey(date = new Date()) {
@@ -118,6 +113,14 @@ function parseTime(value: string): Date | null {
 }
 
 export default function HomeScreen() {
+  const [user, setUser] = useState(auth.currentUser);
+  useEffect(() => onAuthStateChanged(auth, setUser), []);
+  if (!user) return null;
+  return <AccountHome key={user.uid} uid={user.uid} firstName={user.displayName?.trim().split(" ")[0] || "there"} />;
+}
+
+function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
+  const HABITS_KEY = `lifemate_habits_${uid}`;
   const router = useRouter();
 
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -144,139 +147,66 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const user = auth.currentUser;
-  const firstName = user?.displayName?.trim().split(" ")[0] || "there";
+  const [storageError, setStorageError] = useState("");
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
-    const loadTasks = async () => {
+    let active = true;
+    setTasksLoaded(false);
+    setHabitsLoaded(false);
+    setStorageError("");
+    async function load() {
       try {
-        const savedTasks = await AsyncStorage.getItem(TASKS_KEY);
-
-        if (savedTasks) {
-          const parsed: Task[] = JSON.parse(savedTasks);
-
-          // Keep compatibility with tasks created before time was added.
-          setTasks(
-            parsed.map((task) => ({
-              ...task,
-              scheduledTime: task.scheduledTime ?? null,
-              dueDate: task.dueDate ?? getDateKey(),
-            })),
-          );
-        } else {
-          setTasks([
-            {
-              id: "1",
-              title: "Morning workout",
-              category: "Health",
-              completed: true,
-              createdAt: new Date().toISOString(),
-              scheduledTime: null,
-              dueDate: getDateKey(),
-            },
-            {
-              id: "2",
-              title: "Study for today's subjects",
-              category: "Study",
-              completed: false,
-              createdAt: new Date().toISOString(),
-              scheduledTime: null,
-              dueDate: getDateKey(),
-            },
-            {
-              id: "3",
-              title: "Work on personal project",
-              category: "Work",
-              completed: false,
-              createdAt: new Date().toISOString(),
-              scheduledTime: null,
-              dueDate: getDateKey(),
-            },
-          ]);
+        const [rawTasks, rawHabits] = await Promise.all([
+          getTasks(uid),
+          AsyncStorage.getItem(HABITS_KEY),
+        ]);
+        const t = rawTasks;
+        const h = rawHabits === null ? [] : JSON.parse(rawHabits);
+        if (!Array.isArray(t) || !t.every((x: any) => x && typeof x.id === "string" && typeof x.title === "string" && typeof x.completed === "boolean" && typeof x.dueDate === "string" && typeof x.category === "string" && typeof x.createdAt === "string" && (x.scheduledTime === null || typeof x.scheduledTime === "string")) ||
+            !Array.isArray(h) || !h.every((x: any) => x && typeof x.id === "string" && typeof x.title === "string" && typeof x.subtitle === "string" && typeof x.createdAt === "string" && Array.isArray(x.completedDates) && x.completedDates.every((d: unknown) => typeof d === "string"))) {
+          throw new Error("Invalid stored records");
         }
-      } catch (error) {
-        console.log("TASK LOAD FAILED:", error);
-        setErrorMessage("Unable to load saved tasks.");
-      } finally {
+        if (!active || auth.currentUser?.uid !== uid) return;
+        setTasks(t);
+        setHabits(h);
         setTasksLoaded(true);
-      }
-    };
-
-    loadTasks();
-  }, []);
-
-  useEffect(() => {
-    if (!tasksLoaded) return;
-    AsyncStorage.setItem(TASKS_KEY, JSON.stringify(tasks)).catch((error) => {
-      console.log("TASK SAVE FAILED:", error);
-      setErrorMessage("Unable to save tasks on this device.");
-    });
-  }, [tasks, tasksLoaded]);
-
-  useEffect(() => {
-    const loadHabits = async () => {
-      try {
-        const savedHabits = await AsyncStorage.getItem(HABITS_KEY);
-
-        if (savedHabits) {
-          const parsed = JSON.parse(savedHabits) as any[];
-          const migrated: Habit[] = parsed.map((habit) => ({
-            id: String(habit.id ?? `${Date.now()}-${Math.random()}`),
-            title: String(habit.title ?? "Untitled habit"),
-            subtitle: String(habit.subtitle ?? ""),
-            createdAt: habit.createdAt ?? new Date().toISOString(),
-            completedDates: Array.isArray(habit.completedDates)
-              ? habit.completedDates
-              : habit.completed
-                ? [getDateKey()]
-                : [],
-          }));
-          setHabits(migrated);
-        } else {
-          const today = getDateKey();
-          setHabits([
-            {
-              id: "habit-water",
-              title: "Drink enough water",
-              subtitle: "Stay hydrated",
-              createdAt: new Date().toISOString(),
-              completedDates: [],
-            },
-            {
-              id: "habit-reading",
-              title: "Read for 20 minutes",
-              subtitle: "Learn something new",
-              createdAt: new Date().toISOString(),
-              completedDates: [today],
-            },
-            {
-              id: "habit-exercise",
-              title: "Exercise",
-              subtitle: "Move your body",
-              createdAt: new Date().toISOString(),
-              completedDates: [today],
-            },
-          ]);
-        }
-      } catch (error) {
-        console.log("HABIT LOAD FAILED:", error);
-        setErrorMessage("Unable to load saved habits.");
-      } finally {
         setHabitsLoaded(true);
+      } catch (error) {
+        if (active) setStorageError("Unable to load your records. Please retry.");
       }
-    };
+    }
+    void load();
+    return () => { active = false; };
+  }, [uid, retry]);
 
-    loadHabits();
-  }, []);
+  const busy = useRef(false);
+  const [saving, setSaving] = useState(false);
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    getTasks(uid).then(data => { if (active && auth.currentUser?.uid === uid) setTasks(data); }).catch(() => { if (active) setStorageError("Unable to refresh tasks."); });
+    return () => { active = false; };
+  }, [uid]));
+  async function mutate(action: () => Promise<Task[]>) {
+    if (busy.current || !tasksLoaded) return false;
+    busy.current = true; setSaving(true);
+    try {
+      const data = await action();
+      if (auth.currentUser?.uid !== uid) return false;
+      setTasks(data); return true;
+    } catch (e) {
+      if (e instanceof Error && e.message === "DUPLICATE_TASK") setTaskError("This task already exists for this date and time.");
+      else Alert.alert("Unable to save task", "Please try again.");
+      return false;
+    } finally { busy.current = false; setSaving(false); }
+  }
 
   useEffect(() => {
-    if (!habitsLoaded) return;
-
-    AsyncStorage.setItem(HABITS_KEY, JSON.stringify(habits)).catch((error) => {
-      console.log("HABIT SAVE FAILED:", error);
-      setErrorMessage("Unable to save habits on this device.");
+    if (!habitsLoaded || auth.currentUser?.uid !== uid) return;
+    AsyncStorage.setItem(HABITS_KEY, JSON.stringify(habits)).catch(() => {
+      setStorageError("Unable to save habits on this device.");
     });
-  }, [habits, habitsLoaded]);
+  }, [habits, habitsLoaded, uid]);
 
   const todayKey = getDateKey();
   const weekDays = getLastSevenDays();
@@ -289,13 +219,7 @@ export default function HomeScreen() {
     habit.completedDates.includes(todayKey),
   ).length;
 
-  const toggleTask = (id: string) => {
-    setTasks((current) =>
-      current.map((task) =>
-        task.id === id ? { ...task, completed: !task.completed } : task,
-      ),
-    );
-  };
+  const toggleTask = (id: string) => { void mutate(() => toggleStoredTask(uid, id)); };
 
   const chooseClockTime = () => {
     Keyboard.dismiss();
@@ -318,7 +242,8 @@ export default function HomeScreen() {
     setTaskError("");
   };
 
-  const addTask = () => {
+  const addTask = async () => {
+    if (!tasksLoaded || busy.current) return;
     const title = newTaskTitle.trim();
 
     if (!title) {
@@ -355,6 +280,18 @@ export default function HomeScreen() {
       finalTime = formatTime(parsed);
     }
 
+    if (dueDateValue < getDateKey()) {
+      setTaskError("Choose today or a future date.");
+      return;
+    }
+    if (finalTime && dueDateValue === getDateKey()) {
+      const time = parseTime(finalTime);
+      if (time && time.getTime() < Date.now() - 60000) {
+        setTaskError("Choose a future time.");
+        return;
+      }
+    }
+
     const task: Task = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       title,
@@ -365,7 +302,8 @@ export default function HomeScreen() {
       dueDate: dueDateValue,
     };
 
-    setTasks((current) => [task, ...current]);
+    if (!(await mutate(() => createTask(uid, task)))) return;
+    Alert.alert("Task saved", `${title} · ${dueDateValue} · ${finalTime ?? "No time set"}`);
 
     setNewTaskTitle("");
     setNewTaskCategory("Personal");
@@ -379,7 +317,10 @@ export default function HomeScreen() {
   };
 
   const deleteTask = (id: string) => {
-    setTasks((current) => current.filter((task) => task.id !== id));
+    Alert.alert("Delete task?", "Remove this task?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => { void mutate(() => deleteStoredTask(uid, id)); } },
+    ]);
   };
 
   const toggleHabit = (id: string) => {
@@ -399,6 +340,7 @@ export default function HomeScreen() {
   };
 
   const addHabit = () => {
+    if (!habitsLoaded) return;
     const title = newHabitTitle.trim();
 
     if (!title) {
@@ -423,7 +365,10 @@ export default function HomeScreen() {
   };
 
   const deleteHabit = (id: string) => {
-    setHabits((current) => current.filter((habit) => habit.id !== id));
+    Alert.alert("Delete habit?", "This also removes its completion history.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => setHabits(current => current.filter(habit => habit.id !== id)) },
+    ]);
   };
 
   const handleLogout = async () => {
@@ -471,6 +416,12 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {storageError !== "" && (
+          <View style={styles.addTaskCard}>
+            <Text style={styles.formError}>{storageError}</Text>
+            {!tasksLoaded && <Pressable onPress={() => setRetry(n => n + 1)}><Text style={styles.formTitle}>Retry</Text></Pressable>}
+          </View>
+        )}
         <View style={styles.progressCard}>
           <View style={styles.progressTop}>
             <View>
@@ -487,7 +438,7 @@ export default function HomeScreen() {
 
           <View style={styles.progressNumbers}>
             <Text style={styles.progressCount}>
-              {completedTasks}/{tasks.length}
+              {completedTasks}/{todayTasks.length}
             </Text>
             <Text style={styles.progressPercent}>
               {Math.round(taskProgress)}% completed
@@ -501,7 +452,7 @@ export default function HomeScreen() {
           </View>
 
           <Text style={styles.progressBottom}>
-            {tasks.length - completedTasks} tasks left for today
+            {todayTasks.length - completedTasks} tasks left for today
           </Text>
         </View>
 
@@ -510,8 +461,8 @@ export default function HomeScreen() {
             <View style={[styles.statIcon, { backgroundColor: "#F0EAFE" }]}>
               <ListTodo size={20} color="#8B70D9" />
             </View>
-            <Text style={styles.statNumber}>{tasks.length}</Text>
-            <Text style={styles.statLabel}>Total tasks</Text>
+            <Text style={styles.statNumber}>{todayTasks.length}</Text>
+            <Text style={styles.statLabel}>Today's tasks</Text>
           </View>
 
           <View style={styles.statCard}>
@@ -579,7 +530,7 @@ export default function HomeScreen() {
                 setNewTaskTitle(value);
                 setTaskError("");
               }}
-              maxLength={100}
+              maxLength={150}
               returnKeyType="done"
             />
 
@@ -676,8 +627,8 @@ export default function HomeScreen() {
               <Text style={styles.formError}>{taskError}</Text>
             )}
 
-            <Pressable style={styles.saveTaskButton} onPress={addTask}>
-              <Text style={styles.saveTaskText}>Save task</Text>
+            <Pressable style={styles.saveTaskButton} onPress={addTask} disabled={!tasksLoaded || saving}>
+              <Text style={styles.saveTaskText}>{saving ? "Saving..." : "Save task"}</Text>
             </Pressable>
           </View>
         )}
@@ -752,6 +703,11 @@ export default function HomeScreen() {
           )}
         </View>
 
+        <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Upcoming tasks</Text></View>
+        <View style={styles.taskCard}>
+          {tasks.filter(t => t.dueDate > todayKey && !t.completed).length === 0 ? <Text style={styles.emptySubtitle}>No upcoming tasks</Text> : tasks.filter(t => t.dueDate > todayKey && !t.completed).sort((a,b) => a.dueDate.localeCompare(b.dueDate)).slice(0,5).map(t => <View key={t.id} style={styles.taskRow}><View style={styles.taskDetails}><Text style={styles.taskTitle}>{t.title}</Text><Text style={styles.taskTime}>{t.dueDate} · {t.scheduledTime ?? "No time set"}</Text></View></View>)}
+          <Pressable style={styles.taskRow} onPress={() => router.push("/schedule")}><Text style={styles.scheduleButtonText}>View full schedule</Text></Pressable>
+        </View>
         <View style={styles.sectionHeader}>
           <View>
             <Text style={styles.sectionTitle}>Daily habits</Text>
@@ -803,7 +759,7 @@ export default function HomeScreen() {
             {habitError !== "" && (
               <Text style={styles.formError}>{habitError}</Text>
             )}
-            <Pressable style={styles.saveTaskButton} onPress={addHabit}>
+            <Pressable style={styles.saveTaskButton} onPress={addHabit} disabled={!habitsLoaded}>
               <Text style={styles.saveTaskText}>Save habit</Text>
             </Pressable>
           </View>
@@ -812,7 +768,7 @@ export default function HomeScreen() {
         <View style={styles.weeklyCard}>
           <View style={styles.weeklyHeader}>
             <View>
-              <Text style={styles.weeklyTitle}>This week</Text>
+              <Text style={styles.weeklyTitle}>Last 7 days</Text>
               <Text style={styles.weeklySubtitle}>
                 Your daily habit activity
               </Text>
@@ -907,7 +863,7 @@ export default function HomeScreen() {
                           </Text>
                           <Text style={styles.habitMetaSeparator}>·</Text>
                           <Text style={styles.habitMetaText}>
-                            {lastSevenDone}/7 this week
+                            {lastSevenDone}/7 last 7 days
                           </Text>
                         </View>
                       </View>
@@ -1380,7 +1336,7 @@ const styles = StyleSheet.create({
     marginTop: 25,
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(35, 27, 55, 0.38)",
     justifyContent: "center",
     alignItems: "center",
