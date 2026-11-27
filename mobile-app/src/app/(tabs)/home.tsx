@@ -1,3 +1,6 @@
+import { useTranslation } from "react-i18next";
+import i18n from "../../i18n";
+const tr = (key: string) => i18n.t(key);
 import { useEffect, useState } from "react";
 import {
   View,
@@ -31,9 +34,10 @@ import {
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { signOut, onAuthStateChanged } from "firebase/auth";
-import { auth } from "../lib/firebase";
-
-import { getTasks, createTask, toggleStoredTask, deleteStoredTask, type Task } from "../lib/taskStorage";
+import { auth } from "../../lib/firebase";
+import ProfileAvatar from "../../components/ProfileAvatar";
+import { useProfile } from "../../context/ProfileContext";
+import { getTasks, createTask, toggleStoredTask, deleteStoredTask, type Task } from "../../lib/taskStorage";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useRef } from "react";
 
@@ -62,7 +66,7 @@ function getLastSevenDays() {
     date.setDate(date.getDate() - (6 - index));
     return {
       key: getDateKey(date),
-      label: date.toLocaleDateString("en-US", { weekday: "short" }).slice(0, 1),
+      label: date.toLocaleDateString(i18n.language, { weekday: "short" }),
     };
   });
 }
@@ -113,13 +117,25 @@ function parseTime(value: string): Date | null {
 }
 
 export default function HomeScreen() {
-  const [user, setUser] = useState(auth.currentUser);
-  useEffect(() => onAuthStateChanged(auth, setUser), []);
-  if (!user) return null;
-  return <AccountHome key={user.uid} uid={user.uid} firstName={user.displayName?.trim().split(" ")[0] || "there"} />;
+  useTranslation();
+  const { profile, loading } = useProfile();
+
+  if (loading || !profile) return null;
+
+  const firstName =
+    profile.name.trim().split(/\s+/)[0] || "there";
+
+  return (
+    <AccountHome
+      key={profile.uid}
+      uid={profile.uid}
+      firstName={firstName}
+    />
+  );
 }
 
 function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
+  useTranslation();
   const HABITS_KEY = `lifemate_habits_${uid}`;
   const router = useRouter();
 
@@ -173,7 +189,7 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
         setTasksLoaded(true);
         setHabitsLoaded(true);
       } catch (error) {
-        if (active) setStorageError("Unable to load your records. Please retry.");
+        if (active) setStorageError(tr("ui.s131"));
       }
     }
     void load();
@@ -184,7 +200,7 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
   const [saving, setSaving] = useState(false);
   useFocusEffect(useCallback(() => {
     let active = true;
-    getTasks(uid).then(data => { if (active && auth.currentUser?.uid === uid) setTasks(data); }).catch(() => { if (active) setStorageError("Unable to refresh tasks."); });
+    getTasks(uid).then(data => { if (active && auth.currentUser?.uid === uid) setTasks(data); }).catch(() => { if (active) setStorageError(tr("ui.s132")); });
     return () => { active = false; };
   }, [uid]));
   async function mutate(action: () => Promise<Task[]>) {
@@ -195,8 +211,8 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
       if (auth.currentUser?.uid !== uid) return false;
       setTasks(data); return true;
     } catch (e) {
-      if (e instanceof Error && e.message === "DUPLICATE_TASK") setTaskError("This task already exists for this date and time.");
-      else Alert.alert("Unable to save task", "Please try again.");
+      if (e instanceof Error && e.message === "DUPLICATE_TASK") setTaskError(tr("ui.s133"));
+      else Alert.alert(tr("ui.s134"), tr("ui.s118"));
       return false;
     } finally { busy.current = false; setSaving(false); }
   }
@@ -204,7 +220,7 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
   useEffect(() => {
     if (!habitsLoaded || auth.currentUser?.uid !== uid) return;
     AsyncStorage.setItem(HABITS_KEY, JSON.stringify(habits)).catch(() => {
-      setStorageError("Unable to save habits on this device.");
+      setStorageError(tr("ui.s135"));
     });
   }, [habits, habitsLoaded, uid]);
 
@@ -247,13 +263,13 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
     const title = newTaskTitle.trim();
 
     if (!title) {
-      setTaskError("Please enter a task name.");
+      setTaskError(tr("ui.s119"));
       return;
     }
 
     const dueDateValue = newTaskDueDate.trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDateValue)) {
-      setTaskError("Enter a date in YYYY-MM-DD format.");
+      setTaskError(tr("ui.s136"));
       return;
     }
     const dateParts = dueDateValue.split("-").map(Number);
@@ -263,7 +279,7 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
       checkedDate.getMonth() !== dateParts[1] - 1 ||
       checkedDate.getDate() !== dateParts[2]
     ) {
-      setTaskError("Please enter a valid calendar date.");
+      setTaskError(tr("ui.s137"));
       return;
     }
 
@@ -273,7 +289,7 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
       const parsed = parseTime(manualTime);
 
       if (!parsed) {
-        setTaskError("Enter a valid time, e.g. 06:30 PM.");
+        setTaskError(tr("ui.s138"));
         return;
       }
 
@@ -281,13 +297,13 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
     }
 
     if (dueDateValue < getDateKey()) {
-      setTaskError("Choose today or a future date.");
+      setTaskError(tr("ui.s122"));
       return;
     }
     if (finalTime && dueDateValue === getDateKey()) {
       const time = parseTime(finalTime);
       if (time && time.getTime() < Date.now() - 60000) {
-        setTaskError("Choose a future time.");
+        setTaskError(tr("ui.s123"));
         return;
       }
     }
@@ -303,7 +319,7 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
     };
 
     if (!(await mutate(() => createTask(uid, task)))) return;
-    Alert.alert("Task saved", `${title} · ${dueDateValue} · ${finalTime ?? "No time set"}`);
+    Alert.alert(tr("ui.s124"), `${title} · ${dueDateValue} · ${finalTime ?? tr("ui.s32")}`);
 
     setNewTaskTitle("");
     setNewTaskCategory("Personal");
@@ -317,9 +333,9 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
   };
 
   const deleteTask = (id: string) => {
-    Alert.alert("Delete task?", "Remove this task?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => { void mutate(() => deleteStoredTask(uid, id)); } },
+    Alert.alert(tr("ui.s125"), tr("ui.s126"), [
+      { text: tr("ui.s53"), style: "cancel" },
+      { text: tr("ui.s54"), style: "destructive", onPress: () => { void mutate(() => deleteStoredTask(uid, id)); } },
     ]);
   };
 
@@ -344,14 +360,14 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
     const title = newHabitTitle.trim();
 
     if (!title) {
-      setHabitError("Please enter a habit name.");
+      setHabitError(tr("ui.s120"));
       return;
     }
 
     const habit: Habit = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       title,
-      subtitle: newHabitSubtitle.trim() || "Your daily habit",
+      subtitle: newHabitSubtitle.trim() || "",
       createdAt: new Date().toISOString(),
       completedDates: [],
     };
@@ -365,9 +381,9 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
   };
 
   const deleteHabit = (id: string) => {
-    Alert.alert("Delete habit?", "This also removes its completion history.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => setHabits(current => current.filter(habit => habit.id !== id)) },
+    Alert.alert(tr("ui.s127"), tr("ui.s128"), [
+      { text: tr("ui.s53"), style: "cancel" },
+      { text: tr("ui.s54"), style: "destructive", onPress: () => setHabits(current => current.filter(habit => habit.id !== id)) },
     ]);
   };
 
@@ -379,7 +395,7 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
       router.replace("/(auth)/login");
     } catch (error: any) {
       console.log("LOGOUT FAILED:", error?.code, error?.message);
-      setErrorMessage("Unable to log out. Please try again.");
+      setErrorMessage(tr("ui.s139"));
     } finally {
       setLoading(false);
       setShowLogoutConfirm(false);
@@ -395,18 +411,18 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <View>
+          <View style={{flex: 1, minWidth: 0, marginEnd: 8}}>
             <Text style={styles.brand}>LifeMate AI</Text>
-            <Text style={styles.greeting}>Hello, {firstName} 👋</Text>
-            <Text style={styles.headerSubtitle}>Let's make today count.</Text>
+            <Text style={styles.greeting}>{tr("ui.s1")}{" "}{firstName === "there" ? tr("ui.s2") : firstName} 👋</Text>
+            <Text style={styles.headerSubtitle}>{tr("ui.s3")}</Text>
           </View>
 
           <View style={styles.headerActions}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {firstName.charAt(0).toUpperCase()}
-              </Text>
-            </View>
+           <ProfileAvatar
+              name={firstName === "there" ? "" : firstName}
+              size={44}
+              onPress={() => router.push("/profile")}
+            />
             <Pressable
               style={styles.iconButton}
               onPress={() => setShowLogoutConfirm(true)}
@@ -419,17 +435,15 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
         {storageError !== "" && (
           <View style={styles.addTaskCard}>
             <Text style={styles.formError}>{storageError}</Text>
-            {!tasksLoaded && <Pressable onPress={() => setRetry(n => n + 1)}><Text style={styles.formTitle}>Retry</Text></Pressable>}
+            {!tasksLoaded && <Pressable onPress={() => setRetry(n => n + 1)}><Text style={styles.formTitle}>{tr("common.retry")}</Text></Pressable>}
           </View>
         )}
         <View style={styles.progressCard}>
           <View style={styles.progressTop}>
-            <View>
-              <Text style={styles.cardEyebrow}>YOUR DAILY PROGRESS</Text>
-              <Text style={styles.progressTitle}>You're doing great!</Text>
-              <Text style={styles.progressSubtitle}>
-                Every small step matters.
-              </Text>
+            <View style={{flex: 1, minWidth: 0, marginEnd: 8}}>
+              <Text style={styles.cardEyebrow}>{tr("ui.s4")}</Text>
+              <Text style={styles.progressTitle}>{tr("ui.s5")}</Text>
+              <Text style={styles.progressSubtitle}>{tr("ui.s6")}</Text>
             </View>
             <View style={styles.progressIcon}>
               <Target size={25} color="#FFFFFF" />
@@ -441,8 +455,7 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
               {completedTasks}/{todayTasks.length}
             </Text>
             <Text style={styles.progressPercent}>
-              {Math.round(taskProgress)}% completed
-            </Text>
+              {Math.round(taskProgress)}{tr("ui.s7")}</Text>
           </View>
 
           <View style={styles.progressTrack}>
@@ -452,8 +465,7 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
           </View>
 
           <Text style={styles.progressBottom}>
-            {todayTasks.length - completedTasks} tasks left for today
-          </Text>
+            {todayTasks.length - completedTasks}{" "}{tr("ui.s8")}</Text>
         </View>
 
         <View style={styles.statsRow}>
@@ -462,7 +474,7 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
               <ListTodo size={20} color="#8B70D9" />
             </View>
             <Text style={styles.statNumber}>{todayTasks.length}</Text>
-            <Text style={styles.statLabel}>Today's tasks</Text>
+            <Text style={styles.statLabel}>{tr("ui.s9")}</Text>
           </View>
 
           <View style={styles.statCard}>
@@ -472,7 +484,7 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
             <Text style={styles.statNumber}>
               {completedHabits}/{habits.length}
             </Text>
-            <Text style={styles.statLabel}>Habits done</Text>
+            <Text style={styles.statLabel}>{tr("ui.s10")}</Text>
           </View>
 
           <View style={styles.statCard}>
@@ -480,7 +492,7 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
               <Check size={20} color="#46A77A" />
             </View>
             <Text style={styles.statNumber}>{completedTasks}</Text>
-            <Text style={styles.statLabel}>Completed</Text>
+            <Text style={styles.statLabel}>{tr("ui.s11")}</Text>
           </View>
         </View>
 
@@ -489,14 +501,14 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
           onPress={() => router.push("/schedule")}
         >
           <CalendarDays size={18} color="#755DB7" />
-          <Text style={styles.scheduleButtonText}>Open My Schedule</Text>
-          <Text style={styles.scheduleButtonHint}>View all dates</Text>
+          <Text style={styles.scheduleButtonText}>{tr("ui.s12")}</Text>
+          <Text style={styles.scheduleButtonHint}>{tr("ui.s13")}</Text>
         </Pressable>
 
         <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionTitle}>Today's tasks</Text>
-            <Text style={styles.sectionSubtitle}>One step at a time.</Text>
+          <View style={{flex: 1, minWidth: 0, marginEnd: 8}}>
+            <Text style={styles.sectionTitle}>{tr("ui.s9")}</Text>
+            <Text style={styles.sectionSubtitle}>{tr("ui.s14")}</Text>
           </View>
 
           <Pressable
@@ -512,18 +524,18 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
               <Plus size={17} color="#FFFFFF" />
             )}
             <Text style={styles.addTaskButtonText}>
-              {showAddTask ? "Close" : "Add task"}
+              {showAddTask ? tr("ui.s15") : tr("ui.s16")}
             </Text>
           </Pressable>
         </View>
 
         {showAddTask && (
           <View style={styles.addTaskCard}>
-            <Text style={styles.formTitle}>Create a new task</Text>
+            <Text style={styles.formTitle}>{tr("ui.s17")}</Text>
 
             <TextInput
               style={styles.taskInput}
-              placeholder="What do you need to do?"
+              placeholder={tr("ui.s18")}
               placeholderTextColor="#A7A1B2"
               value={newTaskTitle}
               onChangeText={(value) => {
@@ -534,7 +546,7 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
               returnKeyType="done"
             />
 
-            <Text style={styles.categoryLabel}>Choose category</Text>
+            <Text style={styles.categoryLabel}>{tr("ui.s19")}</Text>
 
             <View style={styles.categoryRow}>
               {categories.map((category) => (
@@ -553,13 +565,13 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
                         styles.categoryChipTextActive,
                     ]}
                   >
-                    {category}
+                    {tr(({Personal:"ui.s20",Study:"ui.s21",Work:"ui.s22",Health:"ui.s23"} as Record<string,string>)[category] || category)}
                   </Text>
                 </Pressable>
               ))}
             </View>
 
-            <Text style={styles.categoryLabel}>Schedule date</Text>
+            <Text style={styles.categoryLabel}>{tr("ui.s24")}</Text>
             <TextInput
               style={styles.taskInput}
               value={newTaskDueDate}
@@ -572,12 +584,9 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
               keyboardType="numbers-and-punctuation"
               autoCapitalize="none"
             />
-            <Text style={styles.dateHint}>
-              Use YYYY-MM-DD. You can choose a date next week, next month or
-              next year.
-            </Text>
+            <Text style={styles.dateHint}>{tr("ui.s25")}</Text>
 
-            <Text style={styles.categoryLabel}>Set task time (optional)</Text>
+            <Text style={styles.categoryLabel}>{tr("ui.s26")}</Text>
 
             <View style={styles.timeRow}>
               <View style={styles.timeInputWrapper}>
@@ -599,7 +608,7 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
 
               <Pressable style={styles.clockButton} onPress={chooseClockTime}>
                 <Clock size={18} color="#FFFFFF" />
-                <Text style={styles.clockButtonText}>Clock</Text>
+                <Text style={styles.clockButtonText}>{tr("ui.s27")}</Text>
               </Pressable>
             </View>
 
@@ -617,7 +626,7 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
                     style={styles.pickerDone}
                     onPress={() => setShowTimePicker(false)}
                   >
-                    <Text style={styles.pickerDoneText}>Done</Text>
+                    <Text style={styles.pickerDoneText}>{tr("common.done")}</Text>
                   </Pressable>
                 )}
               </View>
@@ -628,7 +637,7 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
             )}
 
             <Pressable style={styles.saveTaskButton} onPress={addTask} disabled={!tasksLoaded || saving}>
-              <Text style={styles.saveTaskText}>{saving ? "Saving..." : "Save task"}</Text>
+              <Text style={styles.saveTaskText}>{saving ? tr("ui.s28") : tr("ui.s29")}</Text>
             </Pressable>
           </View>
         )}
@@ -639,10 +648,8 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
           ) : todayTasks.length === 0 ? (
             <View style={styles.emptyTasks}>
               <ListTodo size={28} color="#B7A9D9" />
-              <Text style={styles.emptyTitle}>No tasks yet</Text>
-              <Text style={styles.emptySubtitle}>
-                Add your first task to get started.
-              </Text>
+              <Text style={styles.emptyTitle}>{tr("ui.s30")}</Text>
+              <Text style={styles.emptySubtitle}>{tr("ui.s31")}</Text>
             </View>
           ) : (
             todayTasks.map((task, index) => (
@@ -674,17 +681,17 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
 
                       <View style={styles.taskMeta}>
                         <Text style={styles.taskTime}>
-                          {task.scheduledTime || "No time set"}
+                          {task.scheduledTime || tr("ui.s32")}
                         </Text>
                         <View style={styles.categoryDot} />
-                        <Text style={styles.taskCategory}>{task.category}</Text>
+                        <Text style={styles.taskCategory}>{tr(({Personal:"ui.s20",Study:"ui.s21",Work:"ui.s22",Health:"ui.s23"} as Record<string,string>)[task.category] || task.category)}</Text>
                       </View>
                     </View>
                   </Pressable>
 
                   <View style={styles.taskActions}>
                     {task.completed && (
-                      <Text style={styles.doneLabel}>Done</Text>
+                      <Text style={styles.doneLabel}>{tr("common.done")}</Text>
                     )}
                     <Pressable
                       style={styles.deleteButton}
@@ -703,15 +710,15 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
           )}
         </View>
 
-        <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Upcoming tasks</Text></View>
+        <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>{tr("ui.s33")}</Text></View>
         <View style={styles.taskCard}>
-          {tasks.filter(t => t.dueDate > todayKey && !t.completed).length === 0 ? <Text style={styles.emptySubtitle}>No upcoming tasks</Text> : tasks.filter(t => t.dueDate > todayKey && !t.completed).sort((a,b) => a.dueDate.localeCompare(b.dueDate)).slice(0,5).map(t => <View key={t.id} style={styles.taskRow}><View style={styles.taskDetails}><Text style={styles.taskTitle}>{t.title}</Text><Text style={styles.taskTime}>{t.dueDate} · {t.scheduledTime ?? "No time set"}</Text></View></View>)}
-          <Pressable style={styles.taskRow} onPress={() => router.push("/schedule")}><Text style={styles.scheduleButtonText}>View full schedule</Text></Pressable>
+          {tasks.filter(t => t.dueDate > todayKey && !t.completed).length === 0 ? <Text style={styles.emptySubtitle}>{tr("ui.s34")}</Text> : tasks.filter(t => t.dueDate > todayKey && !t.completed).sort((a,b) => a.dueDate.localeCompare(b.dueDate)).slice(0,5).map(t => <View key={t.id} style={styles.taskRow}><View style={styles.taskDetails}><Text style={styles.taskTitle}>{t.title}</Text><Text style={styles.taskTime}>{t.dueDate} · {t.scheduledTime ?? tr("ui.s32")}</Text></View></View>)}
+          <Pressable style={styles.taskRow} onPress={() => router.push("/schedule")}><Text style={styles.scheduleButtonText}>{tr("ui.s35")}</Text></Pressable>
         </View>
         <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionTitle}>Daily habits</Text>
-            <Text style={styles.sectionSubtitle}>Build a better everyday.</Text>
+          <View style={{flex: 1, minWidth: 0, marginEnd: 8}}>
+            <Text style={styles.sectionTitle}>{tr("ui.s36")}</Text>
+            <Text style={styles.sectionSubtitle}>{tr("ui.s37")}</Text>
           </View>
 
           <Pressable
@@ -727,17 +734,17 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
               <Plus size={17} color="#FFFFFF" />
             )}
             <Text style={styles.addTaskButtonText}>
-              {showAddHabit ? "Close" : "Add habit"}
+              {showAddHabit ? tr("ui.s15") : tr("ui.s38")}
             </Text>
           </Pressable>
         </View>
 
         {showAddHabit && (
           <View style={styles.addTaskCard}>
-            <Text style={styles.formTitle}>Create a daily habit</Text>
+            <Text style={styles.formTitle}>{tr("ui.s39")}</Text>
             <TextInput
               style={styles.taskInput}
-              placeholder="Habit name (e.g. Go to gym)"
+              placeholder={tr("ui.s40")}
               placeholderTextColor="#A7A1B2"
               value={newHabitTitle}
               onChangeText={(value) => {
@@ -749,7 +756,7 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
             />
             <TextInput
               style={[styles.taskInput, styles.habitSubtitleInput]}
-              placeholder="Short description (optional)"
+              placeholder={tr("ui.s41")}
               placeholderTextColor="#A7A1B2"
               value={newHabitSubtitle}
               onChangeText={setNewHabitSubtitle}
@@ -760,7 +767,7 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
               <Text style={styles.formError}>{habitError}</Text>
             )}
             <Pressable style={styles.saveTaskButton} onPress={addHabit} disabled={!habitsLoaded}>
-              <Text style={styles.saveTaskText}>Save habit</Text>
+              <Text style={styles.saveTaskText}>{tr("ui.s42")}</Text>
             </Pressable>
           </View>
         )}
@@ -768,10 +775,8 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
         <View style={styles.weeklyCard}>
           <View style={styles.weeklyHeader}>
             <View>
-              <Text style={styles.weeklyTitle}>Last 7 days</Text>
-              <Text style={styles.weeklySubtitle}>
-                Your daily habit activity
-              </Text>
+              <Text style={styles.weeklyTitle}>{tr("ui.s43")}</Text>
+              <Text style={styles.weeklySubtitle}>{tr("ui.s44")}</Text>
             </View>
             <Text style={styles.weeklyCount}>
               {habits.reduce(
@@ -782,7 +787,7 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
                   ).length,
                 0,
               )}{" "}
-              done
+              {tr("common.done")}
             </Text>
           </View>
           <View style={styles.weekDaysRow}>
@@ -820,10 +825,8 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
           ) : habits.length === 0 ? (
             <View style={styles.emptyTasks}>
               <Flame size={27} color="#B7A9D9" />
-              <Text style={styles.emptyTitle}>No habits yet</Text>
-              <Text style={styles.emptySubtitle}>
-                Add a habit you want to build every day.
-              </Text>
+              <Text style={styles.emptyTitle}>{tr("ui.s45")}</Text>
+              <Text style={styles.emptySubtitle}>{tr("ui.s46")}</Text>
             </View>
           ) : (
             habits.map((habit, index) => {
@@ -854,17 +857,15 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
                       <View style={styles.habitDetails}>
                         <Text style={styles.habitTitle}>{habit.title}</Text>
                         <Text style={styles.habitSubtitle}>
-                          {habit.subtitle}
+                          {habit.subtitle || tr("ui.s121")}
                         </Text>
                         <View style={styles.habitMetaRow}>
                           <Flame size={12} color="#F29B59" />
                           <Text style={styles.habitMetaText}>
-                            {streak} day streak
-                          </Text>
+                            {streak}{" "}{tr("ui.s47")}</Text>
                           <Text style={styles.habitMetaSeparator}>·</Text>
                           <Text style={styles.habitMetaText}>
-                            {lastSevenDone}/7 last 7 days
-                          </Text>
+                            {lastSevenDone}{tr("ui.s48")}</Text>
                         </View>
                       </View>
                     </Pressable>
@@ -876,12 +877,12 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
                           completedToday && styles.habitStatusDone,
                         ]}
                       >
-                        {completedToday ? "Done" : "Pending"}
+                        {completedToday ? tr("common.done") : tr("ui.s49")}
                       </Text>
                       <Pressable
                         style={styles.deleteButton}
                         onPress={() => deleteHabit(habit.id)}
-                        accessibilityLabel={`Delete ${habit.title}`}
+                        accessibilityLabel={`${tr("ui.s54")} ${habit.title}`}
                       >
                         <Trash2 size={14} color="#B5A9C9" />
                       </Pressable>
@@ -902,16 +903,12 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
             <Sparkles size={23} color="#FFFFFF" />
           </View>
           <View style={styles.aiTextContainer}>
-            <Text style={styles.aiTitle}>Meet your AI assistant</Text>
-            <Text style={styles.aiSubtitle}>
-              Your personal planning companion is coming soon.
-            </Text>
+            <Text style={styles.aiTitle}>{tr("ui.s50")}</Text>
+            <Text style={styles.aiSubtitle}>{tr("ui.s51")}</Text>
           </View>
         </View>
 
-        <Text style={styles.bottomMessage}>
-          Made for your goals, your habits, your life. 💜
-        </Text>
+        <Text style={styles.bottomMessage}>{tr("ui.s52")}</Text>
       </ScrollView>
 
       {showLogoutConfirm && (
@@ -928,10 +925,8 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
               <LogOut size={23} color="#8B70D9" />
             </View>
 
-            <Text style={styles.modalTitle}>Log out of LifeMate AI?</Text>
-            <Text style={styles.modalSubtitle}>
-              Are you sure you want to end your current session?
-            </Text>
+            <Text style={styles.modalTitle}>{tr("ui.s55")}</Text>
+            <Text style={styles.modalSubtitle}>{tr("ui.s56")}</Text>
 
             {errorMessage !== "" && (
               <Text style={styles.errorText}>{errorMessage}</Text>
@@ -943,7 +938,7 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
                 onPress={() => setShowLogoutConfirm(false)}
                 disabled={loading}
               >
-                <Text style={styles.cancelText}>Cancel</Text>
+                <Text style={styles.cancelText}>{tr("ui.s53")}</Text>
               </Pressable>
 
               <Pressable
@@ -954,7 +949,7 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
                 {loading ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.confirmText}>Yes, Log out</Text>
+                  <Text style={styles.confirmText}>{tr("ui.s57")}</Text>
                 )}
               </Pressable>
             </View>
@@ -1067,7 +1062,7 @@ const styles = StyleSheet.create({
     marginBottom: 11,
   },
   statNumber: { color: "#25213A", fontSize: 19, fontWeight: "900" },
-  statLabel: { color: "#817B96", fontSize: 10, marginTop: 4 },
+  statLabel: { flexShrink: 1, color: "#817B96", fontSize: 10, marginTop: 4 },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1086,8 +1081,8 @@ const styles = StyleSheet.create({
     gap: 9,
     marginBottom: 20,
   },
-  scheduleButtonText: { color: "#755DB7", fontSize: 12, fontWeight: "900" },
-  scheduleButtonHint: { color: "#9A8BBE", fontSize: 10, marginLeft: "auto" },
+  scheduleButtonText: { flexShrink: 1, color: "#755DB7", fontSize: 12, fontWeight: "900" },
+  scheduleButtonHint: { flexShrink: 1, color: "#9A8BBE", fontSize: 10, marginLeft: "auto" },
   addTaskButton: {
     backgroundColor: "#8B70D9",
     borderRadius: 12,
