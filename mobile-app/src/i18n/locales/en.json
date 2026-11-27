@@ -237,5 +237,8 @@
     "s143": "Check your internet connection and try again.",
     "s144": "Too many attempts. Please try again later.",
     "s145": "Unable to save your profile. Please try again."
+  },
+  "manageFeatures": {
+    "dataSafety": "Disabling a feature hides it without deleting your saved data."
   }
 }

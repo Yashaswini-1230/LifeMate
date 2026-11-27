@@ -237,5 +237,8 @@
     "s143": "Comprueba tu conexión a internet e inténtalo de nuevo.",
     "s144": "Demasiados intentos. Inténtalo más tarde.",
     "s145": "No se pudo guardar tu perfil. Reintenta."
+  },
+  "manageFeatures": {
+    "dataSafety": "Desactivar una función la oculta sin eliminar los datos guardados."
   }
 }
