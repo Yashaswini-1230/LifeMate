@@ -10,6 +10,7 @@ import {
 import * as FirebaseAuth from "firebase/auth";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -21,31 +22,38 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
+// Prevent duplicate Firebase app initialization
 const app = getApps().length
   ? getApp()
   : initializeApp(firebaseConfig);
 
-const { getReactNativePersistence } =
-  FirebaseAuth as typeof FirebaseAuth & {
-    getReactNativePersistence: (
-      storage: typeof AsyncStorage
-    ) => Persistence;
-  };
-
 let auth: Auth;
 
-try {
-  auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage),
-  });
-} catch (error) {
-  if (
-    (error as { code?: string }).code ===
-    "auth/already-initialized"
-  ) {
-    auth = getAuth(app);
-  } else {
-    throw error;
+if (Platform.OS === "web") {
+  // Firebase authentication for browser
+  auth = getAuth(app);
+} else {
+  // Firebase authentication for Android and iOS
+  const { getReactNativePersistence } =
+    FirebaseAuth as typeof FirebaseAuth & {
+      getReactNativePersistence: (
+        storage: typeof AsyncStorage
+      ) => Persistence;
+    };
+
+  try {
+    auth = initializeAuth(app, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    });
+  } catch (error) {
+    if (
+      (error as { code?: string }).code ===
+      "auth/already-initialized"
+    ) {
+      auth = getAuth(app);
+    } else {
+      throw error;
+    }
   }
 }
 

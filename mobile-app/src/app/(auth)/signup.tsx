@@ -73,7 +73,7 @@ export default function SignupScreen() {
 
       await signupUser(name, email, password);
 
-      router.replace("/(onboarding)");
+      router.replace("/(onboarding)/setup");
     } catch (error: any) {
       let message = "Something went wrong. Please try again.";
 

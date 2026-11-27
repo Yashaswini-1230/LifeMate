@@ -8,3 +8,7 @@
 node_modules/
 .expo/
 dist/
+# Local source backups
+/LifeMate-source.zip
+/src-backup.zip
+/LifeMate-localized-source.zip

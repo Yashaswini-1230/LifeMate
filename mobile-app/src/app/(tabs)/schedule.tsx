@@ -1,3 +1,6 @@
+import { useTranslation } from "react-i18next";
+import i18n from "../../i18n";
+const tr = (key: string) => i18n.t(key);
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -10,12 +13,12 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { auth } from "../lib/firebase";
+import { auth } from "../../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { useRouter } from "expo-router";
 import { ArrowLeft, CalendarDays, Check, Trash2 } from "lucide-react-native";
 
-import { getTasks, toggleStoredTask, deleteStoredTask, updateTasks, isDuplicateTask, type Task } from "../lib/taskStorage";
+import { getTasks, toggleStoredTask, deleteStoredTask, updateTasks, isDuplicateTask, type Task } from "../../lib/taskStorage";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useRef } from "react";
 
@@ -50,7 +53,7 @@ function isValidDateKey(value: string) {
 
 function formatDate(value: string) {
   if (!isValidDateKey(value)) return value;
-  return parseDateKey(value).toLocaleDateString("en-IN", {
+  return parseDateKey(value).toLocaleDateString(i18n.language, {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -68,12 +71,14 @@ const filters: FilterKey[] = [
 ];
 
 export default function ScheduleScreen() {
+  useTranslation();
   const [user, setUser] = useState(auth.currentUser);
   useEffect(() => onAuthStateChanged(auth, setUser), []);
   if (!user) return null;
   return <AccountSchedule key={user.uid} uid={user.uid} />;
 }
 function AccountSchedule({uid}: {uid: string}) {
+  useTranslation();
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -87,14 +92,14 @@ function AccountSchedule({uid}: {uid: string}) {
   useFocusEffect(useCallback(() => {
     let active = true;
     setLoaded(false); setLoadError("");
-    getTasks(uid).then(data => { if (active && auth.currentUser?.uid === uid) { setTasks(data); setLoaded(true); } }).catch(() => { if (active) setLoadError("Unable to load tasks. Reopen this screen to retry."); });
+    getTasks(uid).then(data => { if (active && auth.currentUser?.uid === uid) { setTasks(data); setLoaded(true); } }).catch(() => { if (active) setLoadError(tr("ui.s140")); });
     return () => { active = false; };
   }, [uid]));
   async function mutate(action: () => Promise<Task[]>) {
     if (!loaded || busy.current) return;
     busy.current = true; setSaving(true);
     try { const data = await action(); if (auth.currentUser?.uid === uid) setTasks(data); }
-    catch { Alert.alert("Unable to save changes", "Please try again."); }
+    catch { Alert.alert(tr("ui.s141"), tr("ui.s118")); }
     finally { busy.current = false; setSaving(false); }
   }
 
@@ -131,9 +136,9 @@ function AccountSchedule({uid}: {uid: string}) {
   }, [tasks, filter, today, tomorrow, weekEnd]);
 
   const toggleTask = (id: string) => { void mutate(() => toggleStoredTask(uid, id)); };
-  const deleteTask = (id: string) => Alert.alert("Delete task?", "Remove this task?", [{text:"Cancel",style:"cancel"},{text:"Delete",style:"destructive",onPress:()=>{void mutate(()=>deleteStoredTask(uid,id));}}]);
+  const deleteTask = (id: string) => Alert.alert(tr("ui.s125"), tr("ui.s126"), [{text:tr("ui.s53"),style:"cancel"},{text:tr("ui.s54"),style:"destructive",onPress:()=>{void mutate(()=>deleteStoredTask(uid,id));}}]);
   const duplicateCount = tasks.filter((t,i) => tasks.slice(0,i).some(other => isDuplicateTask(t,other))).length;
-  const cleanDuplicates = () => Alert.alert("Remove duplicates?", "Keep one copy of each identical task, preferring a completed copy.", [{text:"Cancel",style:"cancel"},{text:"Remove",style:"destructive",onPress:()=>{void mutate(()=>updateTasks(uid, current => {
+  const cleanDuplicates = () => Alert.alert(tr("ui.s129"), tr("ui.s142"), [{text:tr("ui.s53"),style:"cancel"},{text:tr("ui.s130"),style:"destructive",onPress:()=>{void mutate(()=>updateTasks(uid, current => {
     const unique: Task[] = [];
     for (const task of current) {
       const index = unique.findIndex(other => isDuplicateTask(task,other));
@@ -145,7 +150,7 @@ function AccountSchedule({uid}: {uid: string}) {
 
   const selectDate = () => {
     if (!isValidDateKey(selectedDate)) {
-      setDateError("Enter a valid date in YYYY-MM-DD format.");
+      setDateError(tr("ui.s136"));
       return;
     }
     setDateError("");
@@ -165,16 +170,14 @@ function AccountSchedule({uid}: {uid: string}) {
           </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={styles.eyebrow}>LIFEMATE AI</Text>
-            <Text style={styles.title}>My Schedule</Text>
-            <Text style={styles.subtitle}>
-              Plan today and everything ahead.
-            </Text>
+            <Text style={styles.title}>{tr("ui.s58")}</Text>
+            <Text style={styles.subtitle}>{tr("ui.s59")}</Text>
           </View>
           <CalendarDays size={25} color="#8B70D9" />
         </View>
 
         <View style={styles.dateCard}>
-          <Text style={styles.cardTitle}>Tasks on a specific date</Text>
+          <Text style={styles.cardTitle}>{tr("ui.s60")}</Text>
           <TextInput
             style={styles.dateInput}
             value={selectedDate}
@@ -189,12 +192,11 @@ function AccountSchedule({uid}: {uid: string}) {
           <Text style={styles.dateReadable}>
             {isValidDateKey(selectedDate)
               ? formatDate(selectedDate)
-              : "Enter date as YYYY-MM-DD"}
+              : tr("ui.s61")}
           </Text>
           {dateError ? <Text style={styles.error}>{dateError}</Text> : null}
           <Pressable style={styles.primaryButton} onPress={selectDate}>
-            <Text style={styles.primaryButtonText}>
-              View selected date ({dateTasks.length})
+            <Text style={styles.primaryButtonText}>{tr("ui.s62")}{dateTasks.length})
             </Text>
           </Pressable>
           {dateTasks.length > 0 && (
@@ -209,8 +211,8 @@ function AccountSchedule({uid}: {uid: string}) {
         </View>
 
         {loadError !== "" && <Text style={styles.error}>{loadError}</Text>}
-        {duplicateCount > 0 && <Pressable disabled={saving || !loaded} style={styles.primaryButton} onPress={cleanDuplicates}><Text style={styles.primaryButtonText}>Remove duplicate tasks ({duplicateCount})</Text></Pressable>}
-        <Text style={styles.sectionTitle}>Browse tasks</Text>
+        {duplicateCount > 0 && <Pressable disabled={saving || !loaded} style={styles.primaryButton} onPress={cleanDuplicates}><Text style={styles.primaryButtonText}>{tr("ui.s63")}{duplicateCount})</Text></Pressable>}
+        <Text style={styles.sectionTitle}>{tr("ui.s64")}</Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -231,7 +233,7 @@ function AccountSchedule({uid}: {uid: string}) {
                   filter === item && styles.filterTextActive,
                 ]}
               >
-                {item}
+                {tr(({"All":"ui.s65","Today":"ui.s66","Tomorrow":"ui.s67","This Week":"ui.s68","Upcoming":"ui.s69","Overdue":"ui.s70","Completed":"ui.s11"} as Record<string,string>)[item])}
               </Text>
             </Pressable>
           ))}
@@ -243,10 +245,8 @@ function AccountSchedule({uid}: {uid: string}) {
           ) : filteredTasks.length === 0 ? (
             <View style={styles.empty}>
               <CalendarDays size={28} color="#B7A9D9" />
-              <Text style={styles.emptyTitle}>No tasks in this view</Text>
-              <Text style={styles.emptySubtitle}>
-                Add a task from your dashboard and choose its date.
-              </Text>
+              <Text style={styles.emptyTitle}>{tr("ui.s71")}</Text>
+              <Text style={styles.emptySubtitle}>{tr("ui.s72")}</Text>
             </View>
           ) : (
             filteredTasks.map((task, index) => (
@@ -275,10 +275,10 @@ function AccountSchedule({uid}: {uid: string}) {
                     </Text>
                     <Text style={styles.taskMeta}>
                       {formatDate(task.dueDate ?? today)} ·{" "}
-                      {task.scheduledTime ?? "No time"} · {task.category}
+                      {task.scheduledTime ?? tr("ui.s32")} · {tr(({"Personal":"ui.s20","Study":"ui.s21","Work":"ui.s22","Health":"ui.s23"} as Record<string,string>)[task.category] || task.category)}
                     </Text>
                     {(task.dueDate ?? today) < today && !task.completed ? (
-                      <Text style={styles.overdue}>Overdue</Text>
+                      <Text style={styles.overdue}>{tr("ui.s70")}</Text>
                     ) : null}
                   </View>
                   <Pressable
