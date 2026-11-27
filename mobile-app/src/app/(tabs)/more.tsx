@@ -140,8 +140,25 @@ export default function MoreScreen() {
 
             return (
               <Pressable
-                disabled={index !== 1 || !preferences || savingLanguage}
-                onPress={() => { setDraftLanguage(preferences?.language ?? "en"); setShowLanguage(v => !v); }}
+                disabled={
+  (index !== 0 && index !== 1) ||
+  !preferences ||
+  savingLanguage
+}
+onPress={() => {
+  if (index === 0) {
+    router.push("/manage-features");
+    return;
+  }
+
+  if (index === 1) {
+    setDraftLanguage(
+      preferences?.language ?? "en"
+    );
+
+    setShowLanguage((value) => !value);
+  }
+}}
                 key={index}
                 style={[
                   styles.item,
@@ -165,7 +182,11 @@ export default function MoreScreen() {
                     {item.description}
                   </Text>
 
-                  {index !== 1 && <Text style={styles.comingSoon}>{tr("ui.s77")}</Text>}
+                  {index > 1 && (
+  <Text style={styles.comingSoon}>
+    {tr("ui.s77")}
+  </Text>
+)}
                 </View>
               </Pressable>
             );

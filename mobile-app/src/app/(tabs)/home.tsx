@@ -40,7 +40,7 @@ import { useProfile } from "../../context/ProfileContext";
 import { getTasks, createTask, toggleStoredTask, deleteStoredTask, type Task } from "../../lib/taskStorage";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useRef } from "react";
-
+import { usePreferences } from "../../context/PreferencesContext";
 
 type Habit = {
   id: string;
@@ -136,8 +136,15 @@ export default function HomeScreen() {
 
 function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
   useTranslation();
+
+  const { preferences } = usePreferences();
+
+  const habitsEnabled =
+    preferences?.features.habits === true;
+
   const HABITS_KEY = `lifemate_habits_${uid}`;
   const router = useRouter();
+
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [tasksLoaded, setTasksLoaded] = useState(false);
@@ -477,15 +484,15 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
             <Text style={styles.statLabel}>{tr("ui.s9")}</Text>
           </View>
 
-          <View style={styles.statCard}>
-            <View style={[styles.statIcon, { backgroundColor: "#FFF0E7" }]}>
-              <Flame size={20} color="#F29B59" />
+          {habitsEnabled && (
+            <View style={styles.statCard}>
+              <View style={[styles.statIcon, { backgroundColor: "#FFF0E7" }]}>
+                <Flame size={20} color="#F29B59" />
+              </View>
+              <Text style={styles.statNumber}>{completedHabits}/{habits.length}</Text>
+              <Text style={styles.statLabel}>{tr("ui.s10")}</Text>
             </View>
-            <Text style={styles.statNumber}>
-              {completedHabits}/{habits.length}
-            </Text>
-            <Text style={styles.statLabel}>{tr("ui.s10")}</Text>
-          </View>
+          )}
 
           <View style={styles.statCard}>
             <View style={[styles.statIcon, { backgroundColor: "#E9F7F0" }]}>
@@ -715,9 +722,11 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
           {tasks.filter(t => t.dueDate > todayKey && !t.completed).length === 0 ? <Text style={styles.emptySubtitle}>{tr("ui.s34")}</Text> : tasks.filter(t => t.dueDate > todayKey && !t.completed).sort((a,b) => a.dueDate.localeCompare(b.dueDate)).slice(0,5).map(t => <View key={t.id} style={styles.taskRow}><View style={styles.taskDetails}><Text style={styles.taskTitle}>{t.title}</Text><Text style={styles.taskTime}>{t.dueDate} · {t.scheduledTime ?? tr("ui.s32")}</Text></View></View>)}
           <Pressable style={styles.taskRow} onPress={() => router.push("/schedule")}><Text style={styles.scheduleButtonText}>{tr("ui.s35")}</Text></Pressable>
         </View>
-        <View style={styles.sectionHeader}>
-          <View style={{flex: 1, minWidth: 0, marginEnd: 8}}>
-            <Text style={styles.sectionTitle}>{tr("ui.s36")}</Text>
+        {habitsEnabled && (
+          <>
+            <View style={styles.sectionHeader}>
+              <View style={{flex: 1, minWidth: 0, marginEnd: 8}}>
+                <Text style={styles.sectionTitle}>{tr("ui.s36")}</Text>
             <Text style={styles.sectionSubtitle}>{tr("ui.s37")}</Text>
           </View>
 
@@ -897,6 +906,8 @@ function AccountHome({ uid, firstName }: { uid: string; firstName: string }) {
             })
           )}
         </View>
+          </>
+)}
 
         <View style={styles.aiCard}>
           <View style={styles.aiIcon}>
